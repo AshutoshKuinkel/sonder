@@ -4,13 +4,15 @@ import "dotenv/config";
 import cookieParser from "cookie-parser";
 import cors from "cors";
 import bodyParser from "body-parser";
+import { connectFirestore } from './config/db.config';
 
 const app = express();
 app.set("trust proxy", 1);
 const PORT = process.env.PORT;
-const DB_URI = process.env.DB_URI ?? "";
+const string = process.env.FIREBASE_SERVICE_ACCOUNT_PATH ?? ''
 
 // db imports
+connectFirestore(string)
 
 app.use(
   cors({credentials: true})
