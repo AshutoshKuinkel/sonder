@@ -26,3 +26,10 @@ export const connectFirestore = (serviceAccountPath: string) => {
 
   return db;
 };
+
+export const getDb = () => {
+  if (!db) {
+    throw new Error("Firestore not initialized. Call connectFirestore first.");
+  }
+  return db;
+};

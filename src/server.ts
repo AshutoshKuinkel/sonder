@@ -23,7 +23,10 @@ app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
 // import routes
+import memoryRoutes from "./routes/memory.routes";
+
 // use routes
+app.use("/api/v1", memoryRoutes);
 
 app.get("/", (req: Request, res: Response) => {
   res.status(200).json({
