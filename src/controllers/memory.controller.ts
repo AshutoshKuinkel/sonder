@@ -14,15 +14,18 @@ export const createMemoryController = async (
   try {
     const { text, latitude, longitude } = req.body;
 
-    if (!text || latitude === undefined || longitude === undefined) {
+    const lat = Number(latitude);
+    const lng = Number(longitude);
+
+    if (!text || Number.isNaN(lat) || Number.isNaN(lng)) {
       throw new CustomError(
-        "Missing required fields: text, latitude, longitude",
+        "Invalid or missing fields: text, latitude, longitude must be numbers",
         400
       );
     }
 
     const db = getDb();
-    const memoryId = await createMemoryModel(db, text, latitude, longitude);
+    const memoryId = await createMemoryModel(db, text, lat, lng);
 
     res.status(201).json({
       message: `Memory Successfully Created!`,
@@ -53,15 +56,15 @@ export const fetchNearbyMemoriesController = async (
       db,
       Number(latitude),
       Number(longitude),
-      radius ? Number(radius) : 0.001
+      radius ? Number(radius) : 200
     );
 
     // formatting response for unity:
     const formattedMemories = memories.map((memory) => ({
       id: memory.id,
       text: memory.text,
-      latitude: memory.location.latitude,
-      longitude: memory.location.longitude,
+      latitude: memory.latitude,
+      longitude: memory.longitude,
       type: "text", // hardcoded for now, add voice later
       timestamp: memory.createdAt.toDate().toISOString(),
     }));

@@ -1,6 +1,7 @@
 import { CustomError } from "../middlewares/errorHandler.middleware";
 import admin from "firebase-admin";
 import { Memory } from "../types/memory.type";
+import * as geohash from "ngeohash";
 
 const MEMORIES_COLLECTION = "memories";
 // create memory,
@@ -11,9 +12,14 @@ export async function createMemoryModel(
   longitude: number
 ): Promise<String> {
   try {
+    // Generate 7-char geohash (~150m precision)
+    const geoHash = geohash.encode(latitude, longitude, 7);
+
     const memory = {
       text,
-      location: new admin.firestore.GeoPoint(latitude, longitude),
+      latitude,
+      longitude,
+      geohash: geoHash,
       createdAt: admin.firestore.Timestamp.now(),
     };
 
@@ -34,39 +40,54 @@ export async function fetchNearbyMemoriesModel(
   db: FirebaseFirestore.Firestore,
   latitude: number,
   longitude: number,
-  radiusInDegrees: number = 0.001
+  radiusInMeters: number = 200
 ): Promise<Memory[]> {
   try {
-    const minLat = latitude - radiusInDegrees;
-    const maxLat = latitude + radiusInDegrees;
-    const minLng = longitude - radiusInDegrees;
-    const maxLng = longitude + radiusInDegrees;
+    const centerHash = geohash.encode(latitude, longitude, 7);
 
-    // Firestore doesn't support geoqueries natively, so we query by latitude range
-    // and filter longitude in memory
-    const snapshot = await db
-      .collection(MEMORIES_COLLECTION)
-      .where('location.latitude', '>=', minLat)
-      .where('location.latitude', '<=', maxLat)
-      .get();
+    // Get neighboring geohashes to cover the radius
+    const neighbors = geohash.neighbors(centerHash);
+    const hashesToQuery = [centerHash, ...Object.values(neighbors)];
 
-      const memories:Memory[] = [];
+    const allMemories: Memory[] = [];
 
-      snapshot.forEach((doc)=>{
+    for (const hash of hashesToQuery) {
+      const snapshot = await db
+        .collection(MEMORIES_COLLECTION)
+        .where("geohash", ">=", hash)
+        .where("geohash", "<=", hash + "~")
+        .get();
+
+      snapshot.forEach((doc) => {
         const data = doc.data();
-        const lng = data.location.longitude;
-
-        if (lng >= minLng && lng <= maxLng){
-          memories.push({
-            id: doc.id,
-            text:data.text,
-            location: data.location,
-            createdAt: data.createdAt,
-          });
-        }
+        allMemories.push({
+          id: doc.id,
+          text: data.text,
+          latitude: data.latitude,
+          longitude: data.longitude,
+          geohash: data.geohash,
+          createdAt: data.createdAt,
+        });
       });
+    }
 
-      return memories
+    // Filter by actual distance to ensure we're within radius
+    const filteredMemories = allMemories.filter((memory) => {
+      const distance = calculateDistance(
+        latitude,
+        longitude,
+        memory.latitude,
+        memory.longitude
+      );
+      return distance * 1000 <= radiusInMeters; // convert km to meters
+    });
+
+    // Remove duplicates (same memory might appear in multiple geohash regions)
+    const uniqueMemories = Array.from(
+      new Map(filteredMemories.map((m) => [m.id, m])).values()
+    );
+
+    return uniqueMemories;
   } catch (err: any) {
     console.error("Error fetching memories:", err);
     throw new CustomError(`Failed to Fetch Memories`, 500);
@@ -85,3 +106,28 @@ export async function fetchNearbyMemoriesModel(
 //alphanumeric string, creating a hierarchical grid system where longer strings pinpoint smaller,
 //more precise areas on Earth. It enables efficient storage and searching of location data, allowing
 //apps to quickly find nearby places by comparing short string prefixes rather than complex coordinates.
+
+/**
+ * Calculate distance between two points (Haversine formula)
+ * Returns distance in kilometers
+ */
+export function calculateDistance(
+  lat1: number,
+  lon1: number,
+  lat2: number,
+  lon2: number
+): number {
+  const R = 6371; // Earth's radius in km
+  const dLat = (lat2 - lat1) * (Math.PI / 180);
+  const dLon = (lon2 - lon1) * (Math.PI / 180);
+
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * (Math.PI / 180)) *
+      Math.cos(lat2 * (Math.PI / 180)) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}

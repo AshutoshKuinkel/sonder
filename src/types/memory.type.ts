@@ -3,6 +3,8 @@ import admin from 'firebase-admin'
 export interface Memory{
   id: string;
   text:string;
-  location: admin.firestore.GeoPoint;
+  latitude:number;
+  longitude:number;
+  geohash:string;
   createdAt: admin.firestore.Timestamp;
 }

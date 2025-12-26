@@ -6,7 +6,7 @@ import {
   fetchNearbyMemoriesController,
 } from "../controllers/memory.controller";
 
-router.post("/memories", createMemoryController);
+router.post("/memories/create", createMemoryController);
 router.get("/memories/nearby", fetchNearbyMemoriesController);
 
 export default router;
