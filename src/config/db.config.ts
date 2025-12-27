@@ -11,14 +11,27 @@ export const connectFirestore = (serviceAccountPath: string) => {
     throw new Error("FIREBASE_SERVICE_ACCOUNT_PATH is not set");
   }
 
-  const serviceAccount = require(
-    path.resolve(serviceAccountPath)
-  );
+  if (process.env.NODE_ENV === "development") {
+    const serviceAccount = require(path.resolve(serviceAccountPath));
 
-  if (!admin.apps.length) {
-    admin.initializeApp({
-      credential: admin.credential.cert(serviceAccount),
-    });
+    if (!admin.apps.length) {
+      admin.initializeApp({
+        credential: admin.credential.cert(serviceAccount),
+      });
+    }
+  } else {
+    const serviceAccount = JSON.parse(serviceAccountPath);
+
+    serviceAccount.private_key = serviceAccount.private_key.replace(
+      /\\n/g,
+      "\n"
+    );
+
+    if (!admin.apps.length) {
+      admin.initializeApp({
+        credential: admin.credential.cert(serviceAccount),
+      });
+    }
   }
 
   db = admin.firestore();
