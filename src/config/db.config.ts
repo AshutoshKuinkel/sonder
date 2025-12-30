@@ -31,7 +31,7 @@ export const connectFirestore = (serviceAccountPath: string) => {
       admin.initializeApp({
         credential: admin.credential.cert(serviceAccount),
       });
-    }
+    } 
   }
 
   db = admin.firestore();
